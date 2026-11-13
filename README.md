@@ -1,3 +1,5 @@
+<img width="1527" height="820" alt="image" src="https://github.com/user-attachments/assets/4e67f900-bb02-49ad-bf1d-bb7de91ee04f" />
+<img width="1535" height="816" alt="Screenshot 2026-11-13 222240" src="https://github.com/user-attachments/assets/79b476d5-f325-41b7-9ac9-7378994e99e9" />
 # TallyPrime FIFO Pending Invoices Report (`SPD_Pending.tdl`)
 
 A lightweight, **100% read-only** TallyPrime TDL add-on that adds a **Pending Invoices** report directly inside **Ledger Vouchers** (`Ctrl + Alt + D`).
