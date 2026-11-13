@@ -78,6 +78,11 @@ Unlike Tally's default *Bills Receivable / Outstandings* report, this TDL calcul
 ## Compatibility & License
 
 - **Tested on:** TallyPrime Silver (Release 4.x / 5.x+)
+
+**Compatibility:**
+- Tested on TallyPrime Silver (Release 4.x / 5.x+). Should also work on TallyPrime Gold (multi-user), since this TDL is 100% read-only with no UDFs or schema changes - but not yet tested on Gold.
+- Tally.ERP 9 is not supported; this TDL is TallyPrime-specific.
+
 - **License:** MIT License (Free to use, modify, and share)
 <img width="1535" height="816" alt="Screenshot 2026-11-13 222240" src="./assets/screenshot-1.png" />
 <img width="1527" height="820" alt="image" src="./assets/screenshot-2.png" />
