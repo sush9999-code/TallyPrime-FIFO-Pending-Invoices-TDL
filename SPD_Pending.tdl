@@ -1,0 +1,394 @@
+;; =============================================================================
+;; SPD_Pending.tdl
+;; Base = the working file (Ctrl+Alt+D report, F4 ledger, Alt+F2 period, F8 knock column)
+;; Changes:
+;;   1. Compact view: hides old paid rows, keeps LAST 3 paid + all partial/unpaid
+;;      (rows are removed in the collection, running totals start from a computed base)
+;;   2. "Knocked Off in Days": computed by a function that walks non-invoice vouchers
+;;   3. Removed old helper collections that always returned 0
+;; READ ONLY. No UDF, no storage, no bill-by-bill use.
+;; =============================================================================
+
+[#Form: Ledger Vouchers]
+    Add : Key : SPDKey
+
+[Key: SPDKey]
+    Key    : Ctrl+Alt+D
+    Action : Display : SPDReport
+
+[Variable: SPDShowKnock]
+    Type : Logical
+
+[Variable: SPDFullMode]
+    Type : Logical
+
+[Variable: SPDPaidCnt]
+    Type : Number
+
+[Variable: SPDHidSum]
+    Type : Number
+
+[Variable: SPDCutDate]
+    Type : Date
+
+[System: Variable]
+    SPDShowKnock : No
+    SPDFullMode  : No
+    SPDPaidCnt   : 0
+    SPDHidSum    : 0
+
+[Report: SPDReport]
+    Form     : SPDForm
+    Title    : "Pending Invoices"
+    Variable : SVFromDate, SVToDate, LedgerName, SPDShowKnock, SPDFullMode, SPDPaidCnt, SPDHidSum, SPDCutDate
+    Set      : SVFromDate   : $$FinYearBeg:##SVFromDate:$StartingFrom:Company:##SVCurrentCompany
+    Set      : SPDShowKnock : No
+    Set      : SPDFullMode  : No
+    Set      : SPDPaidCnt   : $$SPDCalcPaidCnt
+    Set      : SPDCutDate   : $$SPDCalcCutDate
+    Set      : SPDHidSum    : $$SPDCalcHidSum
+
+[Form: SPDForm]
+    Parts  : SPDTitlePart, SPDBodyPart, SPDTotalPart
+    Button : SPDPeriodBtn, SPDLedgerBtn
+    Keys   : SPDToggleKnockKey
+    Width  : 100% Screen
+    Height : 100% Screen
+
+[Button: SPDPeriodBtn]
+    Key    : Alt+F2
+    Title  : "Period"
+    Action : Call : SPDChangePeriodFunc
+
+[Function: SPDChangePeriodFunc]
+    01 : Modify Variables : ChangePeriod
+    02 : Set : SPDFullMode : Yes
+
+[Button: SPDLedgerBtn]
+    Key    : F4
+    Title  : "Ledger"
+    Action : Call : SPDChangeLedgerFunc
+
+[Function: SPDChangeLedgerFunc]
+    01 : Modify Variables : SPDSelectLedgerRep
+    02 : Set : SPDPaidCnt : $$SPDCalcPaidCnt
+    03 : Set : SPDCutDate : $$SPDCalcCutDate
+    04 : Set : SPDHidSum  : $$SPDCalcHidSum
+
+[Report: SPDSelectLedgerRep]
+    Form  : SPDSelectLedgerForm
+    Title : "Select Ledger"
+
+[Form: SPDSelectLedgerForm]
+    Parts  : SPDSelectLedgerPart
+    Width  : 40% Screen
+
+[Part: SPDSelectLedgerPart]
+    Lines : SPDSelectLedgerLine
+
+[Line: SPDSelectLedgerLine]
+    Fields : Medium Prompt, SPDSelectLedgerFld
+    Local  : Field : Medium Prompt : Set as : "Name of Ledger :"
+
+[Field: SPDSelectLedgerFld]
+    Use         : Name Field
+    Table       : Ledger
+    Show Table  : Always
+    Modifies    : LedgerName
+    Variable    : LedgerName
+
+[Key: SPDToggleKnockKey]
+    Key    : F8
+    Action : Set : SPDShowKnock : NOT ##SPDShowKnock
+
+[Part: SPDTitlePart]
+    Lines       : SPDTitleLine, SPDColLine, SPDOpLine
+    SpaceBottom : 0.2
+
+[Line: SPDTitleLine]
+    Fields      : SPDTitleFld, SPDPeriodFld
+    SpaceBottom : 0.5
+
+[Field: SPDTitleFld]
+    Use    : Name Field
+    Set as : "Pending Invoices: " + ##LedgerName
+    Width  : 65
+    Style  : Normal Bold
+    Skip   : Yes
+
+[Field: SPDPeriodFld]
+    Use    : Name Field
+    Set as : If ##SPDFullMode Then ($$String:##SVFromDate + " to " + $$String:##SVToDate) Else ("As on: " + $$String:##SVToDate)
+    Width  : 35
+    Align  : Right
+    Style  : Normal Bold
+    Skip   : Yes
+
+[Line: SPDColLine]
+    Fields : SPDDate, SPDVchNo, SPDVchType, SPDInvAmt, SPDRecdAmt, SPDPendAmt, SPDDays, SPDKnockDays
+    Local  : Field : Default      : Type   : String
+    Local  : Field : Default      : Style  : Normal Bold
+    Local  : Field : SPDDate      : Set as : "Date"
+    Local  : Field : SPDDate      : Align  : Left
+    Local  : Field : SPDVchNo     : Set as : "Vch No"
+    Local  : Field : SPDVchType   : Set as : "Vch Type"
+    Local  : Field : SPDInvAmt    : Set as : "Inv Amt"
+    Local  : Field : SPDInvAmt    : Align  : Right
+    Local  : Field : SPDRecdAmt   : Set as : "Received"
+    Local  : Field : SPDRecdAmt   : Align  : Right
+    Local  : Field : SPDPendAmt   : Set as : "Pending"
+    Local  : Field : SPDPendAmt   : Align  : Right
+    Local  : Field : SPDDays      : Set as : "Days"
+    Local  : Field : SPDDays      : Align  : Right
+    Local  : Field : SPDKnockDays : Set as : "Knocked Off in Days"
+    Local  : Field : SPDKnockDays : Align  : Right
+    Border : Thin Top Bottom
+
+[Line: SPDOpLine]
+    Fields    : SPDDate, SPDVchNo, SPDVchType, SPDInvAmt, SPDCumInv, SPDRNet, SPDRecdAmt, SPDPendAmt, SPDDays, SPDKnockDays
+    Invisible : (@@SPDOpPendNum = 0)
+    Local     : Field : SPDDate      : Type   : String
+    Local     : Field : SPDDate      : Set as : "< " + $$String:##SVFromDate
+    Local     : Field : SPDDate      : Style  : Normal Bold
+    Local     : Field : SPDVchNo     : Set as : "OLD BILLS!"
+    Local     : Field : SPDVchNo     : Style  : Normal Bold
+    Local     : Field : SPDVchType   : Set as : "Opening (Unpaid)"
+    Local     : Field : SPDVchType   : Style  : Normal Bold
+    Local     : Field : SPDInvAmt    : Set as : @@SPDOpNum
+    Local     : Field : SPDCumInv    : Set as : #SPDInvAmt
+    Local     : Field : SPDRNet      : Set as : @@SPDRNetNum
+    Local     : Field : SPDRecdAmt   : Set as : #SPDInvAmt - @@SPDOpPendNum
+    Local     : Field : SPDPendAmt   : Set as : @@SPDOpPendNum
+    Local     : Field : SPDDays      : Set as : "> " + $$String:($$MachineDate - ##SVFromDate)
+    Local     : Field : SPDDays      : Style  : Normal Bold
+    Local     : Field : SPDKnockDays : Set as : "-"
+    Border    : Thin Bottom
+
+[Part: SPDBodyPart]
+    Lines  : SPDInvLine
+    Repeat : SPDInvLine : SPDBodyColl
+    Scroll : Vertical
+
+[Line: SPDInvLine]
+    Fields : SPDDate, SPDVchNo, SPDVchType, SPDInvAmt, SPDCumInv, SPDRNet, SPDRecdAmt, SPDPendAmt, SPDDays, SPDKnockDays
+
+[Field: SPDDate]
+    Use    : Uni Date Field
+    Set as : $Date
+    Width  : 12
+    Align  : Left
+    Skip   : Yes
+
+[Field: SPDVchNo]
+    Use    : Name Field
+    Set as : $VoucherNumber
+    Width  : 15
+    Skip   : Yes
+
+[Field: SPDVchType]
+    Use    : Name Field
+    Set as : $VoucherTypeName
+    Width  : 20
+    Skip   : Yes
+
+[Field: SPDInvAmt]
+    Use      : Number Field
+    Set as   : $$Number:($$Abs:@@SPDRowDrAmt)
+    Width    : 15
+    Align    : Right
+    Decimals : 2
+    Format   : "NoZero,Decimals:2"
+    Skip     : Yes
+
+[Field: SPDCumInv]
+    Use       : Number Field
+    Set as    : If $$Line = 1 Then (@@SPDBaseCum + #SPDInvAmt) Else ($$PrevLine:#SPDCumInv + #SPDInvAmt)
+    Decimals  : 2
+    Invisible : Yes
+    Skip      : Yes
+
+[Field: SPDRNet]
+    Use       : Number Field
+    Set as    : @@SPDRNetNum
+    Decimals  : 2
+    Invisible : Yes
+    Skip      : Yes
+
+[Field: SPDRecdAmt]
+    Use      : Number Field
+    Set as   : If (#SPDCumInv <= #SPDRNet) Then #SPDInvAmt Else If ((#SPDCumInv - #SPDRNet) >= #SPDInvAmt) Then 0 Else (#SPDInvAmt - (#SPDCumInv - #SPDRNet))
+    Width    : 15
+    Align    : Right
+    Decimals : 2
+    Format   : "ShowZero,Decimals:2"
+    Skip     : Yes
+
+[Field: SPDPendAmt]
+    Use      : Number Field
+    Set as   : #SPDInvAmt - #SPDRecdAmt
+    Width    : 15
+    Align    : Right
+    Decimals : 2
+    Format   : "ShowZero,Decimals:2"
+    Style    : Normal Bold
+    Skip     : Yes
+
+[Field: SPDDays]
+    Use    : Name Field
+    Set as : If (#SPDPendAmt = 0) Then "-" Else $$String:($$MachineDate - $Date)
+    Width  : 8
+    Align  : Right
+    Skip   : Yes
+
+[Field: SPDKnockDays]
+    Use       : Name Field
+    Set as    : If (#SPDPendAmt > 0) Then "-" Else $$SPDKnockCalc:#SPDCumInv:$Date
+    Width     : 20
+    Align     : Right
+    Invisible : NOT ##SPDShowKnock
+    Skip      : Yes
+
+;; ---------- Functions (read-only; they only walk collections and return a value)
+
+;; How many invoices (FIFO) are fully paid
+[Function: SPDCalcPaidCnt]
+    Variable : vRun : Number
+    Variable : vCnt : Number
+    Variable : vR   : Number
+    Return   : Number
+    01 : Set : vR   : @@SPDRNetNum
+    02 : Set : vRun : @@SPDOpNum
+    03 : Set : vCnt : 0
+    04 : Walk Collection : SPDInvColl
+    05 : Set : vRun : ##vRun + $$Number:($$Abs:@@SPDRowDrAmt)
+    06 : If : (##vRun <= ##vR)
+    07 : Set : vCnt : ##vCnt + 1
+    08 : End If
+    09 : End Walk
+    10 : Return : ##vCnt
+
+;; Date of the first invoice that stays visible in compact view (3rd last paid)
+[Function: SPDCalcCutDate]
+    Variable : vIdx : Number
+    Variable : vCut : Date
+    Return   : Date
+    01 : Set : vIdx : 0
+    02 : Set : vCut : ##SVFromDate
+    03 : Walk Collection : SPDInvColl
+    04 : Set : vIdx : ##vIdx + 1
+    05 : If : (##vIdx = (##SPDPaidCnt - 2))
+    06 : Set : vCut : $Date
+    07 : End If
+    08 : End Walk
+    09 : Return : ##vCut
+
+;; Opening + all invoices hidden (dated before the cut date) = start value of running total
+[Function: SPDCalcHidSum]
+    Variable : vSum : Number
+    Return   : Number
+    01 : Set : vSum : @@SPDOpNum
+    02 : Walk Collection : SPDInvColl
+    03 : If : ($Date < ##SPDCutDate)
+    04 : Set : vSum : ##vSum + $$Number:($$Abs:@@SPDRowDrAmt)
+    05 : End If
+    06 : End Walk
+    07 : Return : ##vSum
+
+;; Days between invoice date and the date net receipts reached (and stayed at) the invoice cumulative
+[Function: SPDKnockCalc]
+    Parameter : pCum   : Number
+    Parameter : pInvDt : Date
+    Variable  : vNet   : Number
+    Variable  : vD     : Number
+    Variable  : vDt    : Date
+    Variable  : vAbove : Logical
+    Variable  : vTxt   : String
+    Return    : String
+    01 : Set : vNet   : 0
+    02 : Set : vAbove : No
+    03 : Set : vTxt   : "-"
+    04 : Walk Collection : SPDAllVchColl
+    05 : Set : vNet : ##vNet + ($$Number:($$Abs:@@SPDRowCrAmt) - $$Number:($$Abs:@@SPDRowDrAmt))
+    06 : If : (##vNet >= ##pCum)
+    07 : If : (NOT ##vAbove)
+    08 : Set : vAbove : Yes
+    09 : Set : vDt : $Date
+    10 : End If
+    11 : Else
+    12 : Set : vAbove : No
+    13 : End If
+    14 : End Walk
+    15 : If : ##vAbove
+    16 : Set : vD : ##vDt - ##pInvDt
+    17 : If : (##vD < 0)
+    18 : Set : vD : 0
+    19 : End If
+    20 : Set : vTxt : $$String:##vD
+    21 : End If
+    22 : Return : ##vTxt
+
+[Part: SPDTotalPart]
+    Lines  : SPDTotalLine
+    Border : Totals
+
+[Line: SPDTotalLine]
+    Fields : SPDDate, SPDVchNo, SPDVchType, SPDInvAmt, SPDRecdAmt, SPDPendAmt, SPDDays, SPDKnockDays
+    Local  : Field : Default      : Style  : Normal Bold
+    Local  : Field : SPDDate      : Type   : String
+    Local  : Field : SPDDate      : Set as : ""
+    Local  : Field : SPDVchNo     : Set as : ""
+    Local  : Field : SPDVchType   : Set as : "Total Pending"
+    Local  : Field : SPDInvAmt    : Type   : String
+    Local  : Field : SPDInvAmt    : Set as : ""
+    Local  : Field : SPDRecdAmt   : Type   : String
+    Local  : Field : SPDRecdAmt   : Set as : ""
+    Local  : Field : SPDPendAmt   : Use    : Amount Field
+    Local  : Field : SPDPendAmt   : Set as : @@SPDClBal
+    Local  : Field : SPDPendAmt   : Format : "Decimals:2,DrCr"
+    Local  : Field : SPDDays      : Set as : ""
+    Local  : Field : SPDKnockDays : Set as : ""
+
+;; ---------- Collections
+;; All live invoices of the ledger (used for totals and by the functions)
+[Collection: SPDInvColl]
+    Type     : Vouchers : Ledger
+    Child Of : ##LedgerName
+    Fetch    : Date, VoucherNumber, VoucherTypeName, IsCancelled, IsOptional
+    Compute  : SPDRowDr : $$Number:($$Abs:@@SPDRowDrAmt)
+    Filter   : SPDIsInvoice
+    Sort     : Default : $Date
+
+;; Rows shown in the report (compact view drops old paid invoices)
+[Collection: SPDBodyColl]
+    Type     : Vouchers : Ledger
+    Child Of : ##LedgerName
+    Fetch    : Date, VoucherNumber, VoucherTypeName, IsCancelled, IsOptional
+    Filter   : SPDIsInvoice, SPDInShow
+    Sort     : Default : $Date
+
+;; Receipts, credit notes, journals, bounce reversals etc (non-invoice)
+[Collection: SPDAllVchColl]
+    Type     : Vouchers : Ledger
+    Child Of : ##LedgerName
+    Fetch    : Date, VoucherNumber, VoucherTypeName, IsCancelled, IsOptional
+    Compute  : SPDVchNet : $$Number:($$Abs:@@SPDRowCrAmt) - $$Number:($$Abs:@@SPDRowDrAmt)
+    Filter   : SPDIsNonInvoice
+    Sort     : Default : $Date
+
+[System: Formula]
+    SPDRowDrAmt      : $$OrigVchLedDrTotal:##LedgerName
+    SPDRowCrAmt      : $$OrigVchLedCrTotal:##LedgerName
+    SPDIsLiveVch     : (NOT $IsCancelled) AND (NOT $IsOptional)
+    SPDIsInvoice     : @@SPDIsLiveVch AND ($$IsSales:$VoucherTypeName OR $$IsDebitNote:$VoucherTypeName) AND ($$IsDr:@@SPDRowDrAmt)
+    SPDIsNonInvoice  : @@SPDIsLiveVch AND (NOT @@SPDIsInvoice)
+    SPDOpBal         : $$FromValue:##SVFromDate:$OpeningBalance:Ledger:##LedgerName
+    SPDClBal         : $$ToValue:##SVToDate:$ClosingBalance:Ledger:##LedgerName
+    SPDOpNum         : If $$IsDr:@@SPDOpBal Then $$Number:($$Abs:@@SPDOpBal) Else 0
+    SPDClNum         : If $$IsDr:@@SPDClBal Then $$Number:($$Abs:@@SPDClBal) Else (0 - $$Number:($$Abs:@@SPDClBal))
+    SPDTotInvNum     : $$Number:($$Abs:($$CollAmtTotal:SPDInvColl:@@SPDRowDrAmt))
+    SPDRNetNum       : @@SPDOpNum + @@SPDTotInvNum - @@SPDClNum
+    SPDOpPendNum     : If (@@SPDOpNum <= @@SPDRNetNum) Then 0 Else (@@SPDOpNum - @@SPDRNetNum)
+    ;; compact view is ON only when the helper values are sane (else all rows are shown)
+    SPDCompactOn     : (NOT ##SPDFullMode) AND (##SPDPaidCnt >= 4) AND (##SPDHidSum > 0) AND (NOT $$IsEmpty:##SPDCutDate)
+    SPDBaseCum       : If @@SPDCompactOn Then ##SPDHidSum Else @@SPDOpNum
+    SPDInShow        : (NOT @@SPDCompactOn) OR ($Date >= ##SPDCutDate)
