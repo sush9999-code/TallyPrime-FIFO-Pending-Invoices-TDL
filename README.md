@@ -79,6 +79,6 @@ Unlike Tally's default *Bills Receivable / Outstandings* report, this TDL calcul
 
 - **Tested on:** TallyPrime Silver (Release 4.x / 5.x+)
 - **License:** MIT License (Free to use, modify, and share)
-<img width="1535" height="816" alt="Screenshot 2026-11-13 222240" src="https://github.com/user-attachments/assets/79b476d5-f325-41b7-9ac9-7378994e99e9" />
-<img width="1527" height="820" alt="image" src="https://github.com/user-attachments/assets/4e67f900-bb02-49ad-bf1d-bb7de91ee04f" />
-<img width="1529" height="250" alt="image" src="https://github.com/user-attachments/assets/c750d63b-d594-44a4-9667-c5898b0d1526" />
+<img width="1535" height="816" alt="Screenshot 2026-11-13 222240" src="./assets/screenshot-1.png" />
+<img width="1527" height="820" alt="image" src="./assets/screenshot-2.png" />
+<img width="1529" height="250" alt="image" src="./assets/screenshot-3.png" />
